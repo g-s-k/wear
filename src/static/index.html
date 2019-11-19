@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>How many times???</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <h1>Hello {{user}}!</h1>
+
+    {{#if (gt numItems 0)}}
+    <section>
+      <h3>Your items:</h3>
+      <dl>
+        {{#each items}}
+        <dt style="color:{{color}};">
+          {{name}}
+        </dt>
+        <dd>
+          <p>{{description}}</p>
+
+          <p>
+            Used {{count}} times.
+
+            {{#if hasLast}}
+            Last used <time datetime="{{last}}">{{lastFmt}}</time>
+            {{/if}}
+          </p>
+
+          <form method="post">
+            <button formaction="/item/{{key}}/increment" type="submit">Log usage</button>
+            <button formaction="/item/{{key}}" formmethod="get" type="submit">Edit</button>
+            <button formaction="/item/{{key}}/remove" type="submit">Remove</button>
+          </form>
+        </dd>
+        {{/each}}
+      </dl>
+    </section>
+    {{/if}}
+
+    <section>
+      <h3>Add a new item:</h3>
+      <form id="new-item" action="/item" method="post">
+        <label for="name">Name:</label>
+        <input type="text" id="name" minlength="1" required="true" name="name">
+
+        <label for="description">Description:</label>
+        <textarea id="description" name="description" rows="4"></textarea>
+
+        <button type="submit">Add Item</button>
+      </form>
+    </section>
+  </body>
+</html>

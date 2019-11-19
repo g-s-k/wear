@@ -1,0 +1,29 @@
+body {
+  font-family: sans-serif;
+}
+
+dt {
+  font-weight: bold;
+}
+
+dd + dt {
+  margin-top: 1em;
+}
+
+dd p {
+  margin: 0.5em 0;
+}
+
+#new-item {
+  display: grid;
+}
+
+#new-item input,
+#new-item textarea {
+  grid-column-start: 2;
+  grid-column-end: 8;
+}
+
+#new-item button[type="submit"] {
+  grid-column: 7;
+}
