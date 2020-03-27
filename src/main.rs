@@ -5,7 +5,6 @@ use {
     serde_json::json,
     std::{
         collections::HashMap,
-        error::Error,
         sync::{
             atomic::{AtomicUsize, Ordering},
             Arc, Mutex,
@@ -26,7 +25,7 @@ where
     T: Serialize,
 {
     hbs.render(template.name, &template.value)
-        .unwrap_or_else(|err| err.description().to_owned())
+        .unwrap_or_else(|err| format!("{}", err))
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -131,7 +130,7 @@ fn main() {
         .and(warp::body::form())
         .and_then(
             |s: WrappedState, i: Arc<AtomicUsize>, item: Item| match s.lock() {
-                Err(e) => Err(warp::reject::custom(e.description())),
+                Err(e) => Err(warp::reject::custom(format!("{}", e))),
                 Ok(mut state) => {
                     state.insert(i.fetch_add(1, Ordering::Relaxed), item);
                     Ok(utils::go_home())
@@ -144,7 +143,7 @@ fn main() {
         .and(path::end())
         .and(with_state.clone())
         .and_then(|i: usize, s: WrappedState| match s.lock() {
-            Err(e) => Err(warp::reject::custom(e.description())),
+            Err(e) => Err(warp::reject::custom(format!("{}", e))),
             Ok(state) => {
                 if let Some(v) = state.get(&i) {
                     Ok(edit_page(i, v.clone()))
@@ -172,7 +171,7 @@ fn main() {
                  ..
              }: Item| {
                 let mut state = match s.lock() {
-                    Err(e) => return Err(warp::reject::custom(e.description())),
+                    Err(e) => return Err(warp::reject::custom(format!("{}", e))),
                     Ok(s) => s,
                 };
 
@@ -207,7 +206,7 @@ fn main() {
         .and(path::end())
         .and(with_state.clone())
         .and_then(|i: usize, s: WrappedState| match s.lock() {
-            Err(e) => Err(warp::reject::custom(e.description())),
+            Err(e) => Err(warp::reject::custom(format!("{}", e))),
             Ok(mut state) => {
                 state.remove(&i);
                 Ok(utils::go_home())
@@ -221,5 +220,5 @@ fn main() {
             .or(increment_item)
             .or(delete_item),
     ));
-    warp::serve(router).run(([127, 0, 0, 1], 3000));
+    warp::serve(router).run(([0, 0, 0, 0], 3000));
 }

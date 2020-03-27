@@ -13,10 +13,12 @@
       <h3>Your items:</h3>
       <dl>
         {{#each items}}
-        <dt style="color:{{color}};">
+        <dt>
           {{name}}
         </dt>
         <dd>
+          <input type="color" disabled="" value="{{color}}">
+
           <p>{{description}}</p>
 
           <p>
@@ -42,7 +44,10 @@
       <h3>Add a new item:</h3>
       <form id="new-item" action="/item" method="post">
         <label for="name">Name:</label>
-        <input type="text" id="name" minlength="1" required="true" name="name">
+        <input type="text" id="name" required="" name="name">
+
+        <label for="color">Color:</label>
+        <input type="color" id="color" name="color" required="">
 
         <label for="description">Description:</label>
         <textarea id="description" name="description" rows="4"></textarea>

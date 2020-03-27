@@ -19,11 +19,46 @@ dd p {
 }
 
 #new-item input,
+#new-item select,
 #new-item textarea {
   grid-column-start: 2;
   grid-column-end: 8;
 }
 
 #new-item button[type="submit"] {
+  margin-top: 0.5em;
   grid-column: 7;
+}
+
+:root {
+  --bg-color: #222;
+  --bg-sunken-color: #000;
+  --border-color: #555;
+  --fg-color: #fff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-color: #aaa;
+    --bg-sunken-color: #eee;
+    --border-color: #555;
+    --fg-color: #222;
+  }
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--fg-color);
+}
+
+input:not([type="color"]),
+textarea {
+  background-color: var(--bg-sunken-color);
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  color: var(--fg-color);
+}
+
+textarea {
+  resize: none;
 }
