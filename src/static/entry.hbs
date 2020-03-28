@@ -1,0 +1,22 @@
+<dt>
+  {{name}}
+</dt>
+<dd>
+  <input type="color" disabled="" value="{{color}}">
+
+  <p>{{description}}</p>
+
+  <p>
+    Used {{count}} times.
+
+    {{#if hasLast}}
+    Last used <time datetime="{{last}}">{{lastFmt}}</time>
+    {{/if}}
+  </p>
+
+  <form method="post">
+    <button formaction="/item/{{key}}/increment" type="submit">Log usage</button>
+    <button formaction="/item/{{key}}" formmethod="get" type="submit">Edit</button>
+    <button formaction="/item/{{key}}/remove" type="submit">Remove</button>
+  </form>
+</dd>

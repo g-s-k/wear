@@ -1,0 +1,15 @@
+<form id="new-item" action="/item/{{key}}" method="post">
+  <label for="name">Name:</label>
+  <input type="text" id="name" minlength="1" required="true" name="name" value="{{name}}">
+
+  <label for="tags">Tags:</label>
+  <input type="text" id="tags" name="tags" value="{{tags}}">
+
+  <label for="color">Color:</label>
+  <input type="color" id="color" name="color" value="{{color}}">
+
+  <label for="description">Description:</label>
+  <textarea id="description" name="description" rows="4">{{description}}</textarea>
+
+  <button type="submit">{{#if edit}}Update{{else}}Create{{/if}} Item</button>
+</form>

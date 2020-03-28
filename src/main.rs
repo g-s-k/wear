@@ -38,6 +38,11 @@ struct Item {
     last: Option<DateTime<Utc>>,
     #[serde(default = "utils::default_color")]
     color: String,
+    #[serde(
+        deserialize_with = "utils::split_comma",
+        serialize_with = "utils::join_comma"
+    )]
+    tags: Vec<String>,
 }
 
 type WrappedState = Arc<Mutex<HashMap<usize, Item>>>;
@@ -55,6 +60,7 @@ fn home_page(state: WrappedState) -> WithTemplate<serde_json::Value> {
                     count,
                     last,
                     color,
+                    tags,
                 },
             )| {
                 json!({
@@ -66,6 +72,7 @@ fn home_page(state: WrappedState) -> WithTemplate<serde_json::Value> {
                     "last": last,
                     "lastFmt": last.map(|l| utils::format_since(l)),
                     "color": color,
+                    "tags": tags.join(", "),
                 })
             },
         )
@@ -73,7 +80,11 @@ fn home_page(state: WrappedState) -> WithTemplate<serde_json::Value> {
 
     WithTemplate {
         name: "index",
-        value: json!({"items": items, "numItems": items.len(), "user" : "warp"}),
+        value: json!({
+            "items": items,
+            "numItems": items.len(),
+            "user" : "warp"
+        }),
     }
 }
 
@@ -83,25 +94,32 @@ fn edit_page(
         name,
         description,
         color,
+        tags,
         ..
     }: Item,
 ) -> WithTemplate<serde_json::Value> {
     WithTemplate {
         name: "edit",
         value: json!({
+            "edit": true,
             "key": idx,
             "name": name,
             "description": description,
             "color": color,
+            "tags": tags.join(", "),
         }),
     }
 }
 
 fn main() {
     let mut hb = Handlebars::new();
-    hb.register_template_file("index", "./src/static/index.html")
+    hb.register_template_file("index", "./src/static/index.hbs")
         .unwrap();
-    hb.register_template_file("edit", "./src/static/edit.html")
+    hb.register_template_file("entry", "./src/static/entry.hbs")
+        .unwrap();
+    hb.register_template_file("form", "./src/static/form.hbs")
+        .unwrap();
+    hb.register_template_file("edit", "./src/static/edit.hbs")
         .unwrap();
     let hb = Arc::new(hb);
     let hbars = move |with_template| render(with_template, hb.clone());
