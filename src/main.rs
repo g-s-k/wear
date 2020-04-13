@@ -113,7 +113,73 @@ fn edit_page(
     }
 }
 
-fn main() {
+#[derive(Debug)]
+struct MutexUnlockFailure;
+impl warp::reject::Reject for MutexUnlockFailure {}
+
+macro_rules! lock_mutex {
+    ( $s:expr ) => {
+        $s.lock()
+            .map_err(|_| warp::reject::custom(MutexUnlockFailure))?
+    };
+}
+
+async fn handle_post_item(
+    s: WrappedState,
+    i: Arc<AtomicUsize>,
+    item: Item,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    lock_mutex!(s).insert(i.fetch_add(1, Ordering::Relaxed), item);
+    Ok(utils::go_home())
+}
+
+async fn handle_update_item(
+    i: usize,
+    s: WrappedState,
+    Item {
+        name,
+        description,
+        color,
+        ..
+    }: Item,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    if let Some(v) = lock_mutex!(s).get_mut(&i) {
+        v.color = color;
+        v.name = name;
+        v.description = description;
+        Ok(utils::go_home())
+    } else {
+        Err(warp::reject::not_found())
+    }
+}
+
+async fn handle_increment(i: usize, s: WrappedState) -> Result<impl warp::Reply, warp::Rejection> {
+    if let Some(v) = lock_mutex!(s).get_mut(&i) {
+        v.count += 1;
+        v.last = Some(Utc::now());
+        Ok(utils::go_home())
+    } else {
+        Err(warp::reject::not_found())
+    }
+}
+
+async fn handle_delete_item(i: usize, s: WrappedState) -> Result<impl warp::Reply, warp::Rejection> {
+    lock_mutex!(s).remove(&i);
+    Ok(utils::go_home())
+}
+
+async fn handle_edit_form(
+    i: usize,
+    s: WrappedState,
+) -> Result<WithTemplate<serde_json::Value>, warp::Rejection> {
+    lock_mutex!(s)
+        .get(&i)
+        .map(|v| edit_page(i, v.clone()))
+        .ok_or_else(warp::reject::not_found)
+}
+
+#[tokio::main]
+async fn main() {
     let mut hb = Handlebars::new();
     hb.register_template_string("index", include_str!("./static/index.hbs"))
         .unwrap();
@@ -131,7 +197,7 @@ fn main() {
     let state = Arc::new(Mutex::new(HashMap::new()));
     let with_state = warp::any().map(move || state.clone());
 
-    let index = warp::get2()
+    let index = warp::get()
         .and(path::end())
         .and(with_state.clone())
         .map(home_page)
@@ -143,96 +209,43 @@ fn main() {
         .map(|| include_str!("./static/styles.css"))
         .with(utils::css_header());
 
-    let post_item = warp::post2()
+    let post_item = warp::post()
         .and(path::end())
         .and(with_state.clone())
         .and(with_index)
         .and(warp::body::content_length_limit(1024 * 32))
         .and(warp::body::form())
-        .and_then(
-            |s: WrappedState, i: Arc<AtomicUsize>, item: Item| match s.lock() {
-                Err(e) => Err(warp::reject::custom(format!("{}", e))),
-                Ok(mut state) => {
-                    state.insert(i.fetch_add(1, Ordering::Relaxed), item);
-                    Ok(utils::go_home())
-                }
-            },
-        );
+        .and_then(handle_post_item);
 
-    let edit_item = warp::get2()
-        .and(path::param2())
+    let edit_item = warp::get()
+        .and(path::param())
         .and(path::end())
         .and(with_state.clone())
-        .and_then(|i: usize, s: WrappedState| match s.lock() {
-            Err(e) => Err(warp::reject::custom(format!("{}", e))),
-            Ok(state) => {
-                if let Some(v) = state.get(&i) {
-                    Ok(edit_page(i, v.clone()))
-                } else {
-                    Err(warp::reject::not_found())
-                }
-            }
-        })
+        .and_then(handle_edit_form)
         .map(hbars)
         .with(utils::html_header());
 
-    let update_item = warp::post2()
-        .and(path::param2())
+    let update_item = warp::post()
+        .and(path::param())
         .and(path::end())
         .and(with_state.clone())
         .and(warp::body::content_length_limit(1024 * 32))
         .and(warp::body::form())
-        .and_then(
-            |i: usize,
-             s: WrappedState,
-             Item {
-                 name,
-                 description,
-                 color,
-                 ..
-             }: Item| {
-                let mut state = match s.lock() {
-                    Err(e) => return Err(warp::reject::custom(format!("{}", e))),
-                    Ok(s) => s,
-                };
+        .and_then(handle_update_item);
 
-                if let Some(v) = state.get_mut(&i) {
-                    v.color = color;
-                    v.name = name;
-                    v.description = description;
-                    Ok(utils::go_home())
-                } else {
-                    Err(warp::reject::not_found())
-                }
-            },
-        );
-
-    let increment_item = warp::post2()
-        .and(path::param2())
+    let increment_item = warp::post()
+        .and(path::param())
         .and(warp::path("increment"))
         .and(path::end())
         .and(with_state.clone())
-        .map(|i: usize, s: WrappedState| {
-            if let Some(v) = s.lock().unwrap().get_mut(&i) {
-                v.count += 1;
-                v.last = Some(Utc::now());
-            }
+        .and_then(handle_increment);
 
-            utils::go_home()
-        });
-
-    let delete_item = warp::post2()
-        .and(path::param2())
+    let delete_item = warp::post()
+        .and(path::param())
         .and(path("remove"))
         .and(path::end())
         .and(with_state)
-        .and_then(|i: usize, s: WrappedState| match s.lock() {
-            Err(e) => Err(warp::reject::custom(format!("{}", e))),
-            Ok(mut state) => {
-                state.remove(&i);
-                Ok(utils::go_home())
-            }
-        });
+        .and_then(handle_delete_item);
 
     let router = index.or(css).or(warp::path("item").and(
         post_item
@@ -241,5 +254,6 @@ fn main() {
             .or(increment_item)
             .or(delete_item),
     ));
-    warp::serve(router).run(([0, 0, 0, 0], 3000));
+
+    warp::serve(router).run(([0, 0, 0, 0], 3000)).await;
 }
