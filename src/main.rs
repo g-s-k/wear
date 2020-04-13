@@ -1,3 +1,5 @@
+#![deny(clippy::all)]
+
 use {
     chrono::{DateTime, Utc},
     handlebars::Handlebars,
@@ -70,7 +72,7 @@ fn home_page(state: WrappedState) -> WithTemplate<serde_json::Value> {
                     "count": count,
                     "hasLast": last.is_some(),
                     "last": last,
-                    "lastFmt": last.map(|l| utils::format_since(l)),
+                    "lastFmt": last.map(utils::format_since),
                     "color": color,
                     "tags": tags.join(", "),
                 })
@@ -144,7 +146,7 @@ fn main() {
     let post_item = warp::post2()
         .and(path::end())
         .and(with_state.clone())
-        .and(with_index.clone())
+        .and(with_index)
         .and(warp::body::content_length_limit(1024 * 32))
         .and(warp::body::form())
         .and_then(
@@ -171,7 +173,7 @@ fn main() {
                 }
             }
         })
-        .map(hbars.clone())
+        .map(hbars)
         .with(utils::html_header());
 
     let update_item = warp::post2()
@@ -223,7 +225,7 @@ fn main() {
         .and(path::param2())
         .and(path("remove"))
         .and(path::end())
-        .and(with_state.clone())
+        .and(with_state)
         .and_then(|i: usize, s: WrappedState| match s.lock() {
             Err(e) => Err(warp::reject::custom(format!("{}", e))),
             Ok(mut state) => {
