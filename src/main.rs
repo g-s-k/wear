@@ -138,7 +138,8 @@ fn main() {
 
     let css = path("styles.css")
         .and(path::end())
-        .and(warp::fs::file("./src/static/styles.css"));
+        .map(|| include_str!("./static/styles.css"))
+        .with(utils::css_header());
 
     let post_item = warp::post2()
         .and(path::end())

@@ -6,6 +6,10 @@ use {
     warp::{filters::reply::WithHeader, http::Uri, Reply},
 };
 
+pub fn css_header() -> WithHeader {
+    warp::reply::with::header("Content-Type", "text/css")
+}
+
 pub fn html_header() -> WithHeader {
     warp::reply::with::header("Content-Type", "text/html")
 }
