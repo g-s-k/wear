@@ -53,7 +53,7 @@ impl<'de> Visitor<'de> for StringListVisitor {
 
     fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
         Ok(value
-            .split(",")
+            .split(',')
             .map(str::trim)
             .map(ToOwned::to_owned)
             .collect())
