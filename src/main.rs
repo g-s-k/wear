@@ -113,13 +113,13 @@ fn edit_page(
 
 fn main() {
     let mut hb = Handlebars::new();
-    hb.register_template_file("index", "./src/static/index.hbs")
+    hb.register_template_string("index", include_str!("./static/index.hbs"))
         .unwrap();
-    hb.register_template_file("entry", "./src/static/entry.hbs")
+    hb.register_partial("entry", include_str!("./static/entry.hbs"))
         .unwrap();
-    hb.register_template_file("form", "./src/static/form.hbs")
+    hb.register_partial("form", include_str!("./static/form.hbs"))
         .unwrap();
-    hb.register_template_file("edit", "./src/static/edit.hbs")
+    hb.register_template_string("edit", include_str!("./static/edit.hbs"))
         .unwrap();
     let hb = Arc::new(hb);
     let hbars = move |with_template| render(with_template, hb.clone());
