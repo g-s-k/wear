@@ -120,16 +120,16 @@ async fn home_page(pool: SqlitePool) -> Result<WithTemplate<serde_json::Value>, 
 }
 
 async fn handle_post_item(s: SqlitePool, item: Item) -> Result<impl warp::Reply, warp::Rejection> {
-    match sqlx::query!(
+    match sqlx::query(
         r#"
         INSERT INTO garments ( name, description, color, tags )
         VALUES ( ?, ?, ?, ? )
     "#,
-        item.name,
-        item.description,
-        item.color,
-        item.tags.join(",")
     )
+    .bind(&item.name)
+    .bind(item.description)
+    .bind(item.color)
+    .bind(item.tags.join(","))
     .execute(&s)
     .await
     {
@@ -152,18 +152,18 @@ async fn handle_update_item(
         ..
     }: Item,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    match sqlx::query!(
+    match sqlx::query(
         r#"
             UPDATE garments
             SET color = ?, name = ?, description = ?, tags = ?
             WHERE id = ?
         "#,
-        color,
-        name,
-        description,
-        tags.join(","),
-        i as i32,
     )
+    .bind(color)
+    .bind(name)
+    .bind(description)
+    .bind(tags.join(","))
+    .bind(i as i32)
     .execute(&s)
     .await
     {
@@ -176,17 +176,11 @@ async fn handle_update_item(
 }
 
 async fn handle_increment(i: usize, s: SqlitePool) -> Result<impl warp::Reply, warp::Rejection> {
-    match sqlx::query!(
-        r#"
-            UPDATE garments
-            SET count = count + 1, last = ?
-            WHERE id = ?
-        "#,
-        Utc::now().to_string(),
-        i as i32,
-    )
-    .execute(&s)
-    .await
+    match sqlx::query("UPDATE garments SET count = count + 1, last = ? WHERE id = ?")
+        .bind(Utc::now().to_string())
+        .bind(i as i32)
+        .execute(&s)
+        .await
     {
         Ok(_) => Ok(utils::go_home()),
         Err(e) => {
@@ -197,7 +191,8 @@ async fn handle_increment(i: usize, s: SqlitePool) -> Result<impl warp::Reply, w
 }
 
 async fn handle_delete_item(i: usize, s: SqlitePool) -> Result<impl warp::Reply, warp::Rejection> {
-    sqlx::query!("DELETE FROM garments WHERE id = ?", i as i32)
+    sqlx::query("DELETE FROM garments WHERE id = ?")
+        .bind(i as i32)
         .execute(&s)
         .await
         .map_err(|_| warp::reject::not_found())?;
