@@ -2,26 +2,66 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    {{#if (eq numItems 0)}}
+      <meta http-equiv="refresh" content="0; URL='/item/new'" />
+    {{/if}}
     <title>How many times???</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <h1>Hello {{user}}!</h1>
-
-    {{#if (gt numItems 0)}}
-    <section>
-      <h3>Your items:</h3>
-      <dl>
-        {{#each items}}
-          {{> entry}}
-        {{/each}}
-      </dl>
-    </section>
-    {{/if}}
-
-    <section>
-      <h3>Add a new item:</h3>
-      {{> form}}
-    </section>
+    <h1>Your items</h1>
+    <table>
+      <thead>
+        <tr>
+          <th>Info</th><th>{{> nav category="name"}}</th>
+          <th>Times worn</th><th>{{> nav category="count"}}</th>
+          <th>Last wear</th><th>{{> nav category="wear"}}</th>
+          <th>Last wash</th><th>{{> nav category="wash"}}</th>
+        </tr>
+      </thead>
+      <form method="post">
+        <tbody>
+          {{#each items}}
+            <tr>
+              <td>
+                <strong>{{name}}</strong>
+                <i class="swatch" style="background-color:{{color}};" title="{{color}}"></i>
+                {{#if description}}
+                <p class="item-description">{{description}}</p>
+                {{/if}}
+                <div>
+                  <a class="icon" href="/item/{{key}}" title="Edit {{name}}">✏️</a>
+                  <button class="icon" formaction="/item/{{key}}/remove" title="Delete {{name}}" type="submit">🗑</button>
+                </div>
+              </td>
+              <td></td>
+              <td title="{{totalCount}} times total">{{count}}</td>
+              <td></td>
+                <td>
+                  {{#if hasWear}}
+                    <time datetime="{{wear}}" title="{{wear}}">{{wearFmt}}</time>
+                  {{/if}}
+                </td>
+                <td>
+                  <button class="icon" formaction="/item/{{key}}/increment" type="submit" title="Log usage for {{name}}">
+                    🧦
+                  </button>
+                </td>
+                <td>
+                  {{#if hasWash}}
+                    <time datetime="{{wash}}" title="{{wash}}">{{washFmt}}</time>
+                  {{/if}}
+                </td>
+                <td>
+                  <button class="icon" formaction="/item/{{key}}/reset" type="submit" title="Log wash for {{name}}">
+                    🧼
+                  </button>
+                </td>
+            </tr>
+          {{/each}}
+          <tr><td><a href="/item/new">Create new...</a></td></tr>
+        </tbody>
+      </form>
+    </table>
   </body>
 </html>

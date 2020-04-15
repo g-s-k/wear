@@ -1,58 +1,125 @@
-body {
-  font-family: sans-serif;
-}
-
-dt {
-  font-weight: bold;
-}
-
-dd + dt {
-  margin-top: 1em;
-}
-
-dd p {
-  margin: 0.5em 0;
-}
-
-#new-item {
-  display: grid;
-}
-
-#new-item input,
-#new-item select,
-#new-item textarea {
-  grid-column-start: 2;
-  grid-column-end: 8;
-}
-
-#new-item button[type="submit"] {
-  margin-top: 0.5em;
-  grid-column: 7;
-}
-
 :root {
   --bg-color: #222;
   --bg-sunken-color: #000;
   --border-color: #555;
   --fg-color: #fff;
+  --anchor-color: #0df;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-color: #aaa;
-    --bg-sunken-color: #eee;
+    --bg-color: #ddd;
+    --bg-sunken-color: #fff;
     --border-color: #555;
     --fg-color: #222;
+    --anchor-color: #069;
   }
 }
 
 body {
   background-color: var(--bg-color);
   color: var(--fg-color);
+  font-family: sans-serif;
 }
 
-input:not([type="color"]),
-textarea {
+@media (max-aspect-ratio: 2/3) {
+  body {
+    font-size: 24pt;
+  }
+
+  .icon {
+    font-size: 40pt;
+  }
+}
+
+#new-item input,
+#new-item select,
+#new-item textarea {
+  width: 100%;
+  font-size: 1rem;
+  line-height: 1.5em;
+}
+
+#new-item label,
+#new-item button {
+  display: block;
+}
+
+#new-item label:not(:first-child),
+#new-item button {
+  display: block;
+  margin-top: 0.5em;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  position: sticky;
+  top: 0px;
+  background-color: var(--bg-color);
+  text-align: left;
+  padding: 0.5em 0;
+}
+
+th:not(:last-child), td:not(:last-child) {
+  padding-right: 1ch;
+}
+
+tbody tr:not(:last-child):nth-child(2n) {
+  background-color: var(--bg-sunken-color);
+}
+
+i.swatch {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  border: 2px solid var(--fg-color);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.item-description {
+  margin: 0.5em 0;
+  white-space: break-spaces;
+}
+
+button {
+  cursor: pointer;
+}
+
+table form {
+  display: inline;
+}
+
+a, table button {
+  font-weight: initial;
+  color: var(--anchor-color);
+  text-decoration: none;
+}
+
+
+a:not(.icon),
+table button:not(:icon) {
+  font-style: italic;
+}
+
+a:not(.icon):hover,
+table button:not(.icon):hover {
+  text-decoration: underline;
+}
+
+table button {
+  border: none;
+  background: transparent;
+  font-size: 1em;
+  padding: 0;
+}
+
+input, textarea {
   background-color: var(--bg-sunken-color);
   border: 1px solid var(--border-color);
   border-radius: 2px;

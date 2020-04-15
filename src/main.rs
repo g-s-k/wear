@@ -2,6 +2,7 @@
 
 use {
     chrono::{DateTime, Utc},
+    chrono_humanize::Humanize,
     handlebars::Handlebars,
     serde::{Deserialize, Serialize},
     serde_json::json,
@@ -24,8 +25,10 @@ fn render<T>(template: WithTemplate<T>, hbs: Arc<Handlebars>) -> impl warp::Repl
 where
     T: Serialize,
 {
-    hbs.render(template.name, &template.value)
-        .unwrap_or_else(|err| format!("{}", err))
+    warp::reply::html(
+        hbs.render(template.name, &template.value)
+            .unwrap_or_else(|err| format!("{}", err)),
+    )
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -37,7 +40,11 @@ struct Item {
     #[serde(default)]
     count: usize,
     #[serde(default)]
-    last: Option<DateTime<Utc>>,
+    total_count: usize,
+    #[serde(default)]
+    last_wear: Option<DateTime<Utc>>,
+    #[serde(default)]
+    last_wash: Option<DateTime<Utc>>,
     #[serde(default = "utils::default_color")]
     color: String,
     #[serde(
@@ -54,8 +61,15 @@ impl<'c> FromRow<'c, SqliteRow<'c>> for Item {
             name: row.try_get::<String, _>("name")?,
             description: row.try_get::<String, _>("description")?,
             count: row.try_get::<i32, _>("count")? as usize,
-            last: row
-                .try_get::<Option<&str>, _>("last")?
+            total_count: row.try_get::<i32, _>("total")? as usize,
+            last_wash: row
+                .try_get::<Option<&str>, _>("wash")?
+                .map(DateTime::parse_from_rfc3339)
+                .map(Result::ok)
+                .flatten()
+                .map(|d| d.with_timezone(&Utc)),
+            last_wear: row
+                .try_get::<Option<&str>, _>("wear")?
                 .map(DateTime::parse_from_rfc3339)
                 .map(Result::ok)
                 .flatten()
@@ -70,14 +84,89 @@ impl<'c> FromRow<'c, SqliteRow<'c>> for Item {
     }
 }
 
-async fn home_page(pool: SqlitePool) -> Result<WithTemplate<serde_json::Value>, warp::Rejection> {
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum SortItems {
+    Name,
+    Count,
+    Wear,
+    Wash,
+}
+
+#[derive(Deserialize)]
+struct IndexOpts {
+    sort: Option<SortItems>,
+    descending: Option<bool>,
+}
+
+impl IndexOpts {
+    fn get_sort_fn(&self) -> fn(&Item, &Item) -> std::cmp::Ordering {
+        match self.sort {
+            Some(SortItems::Name) => {
+                |Item { name: ref a, .. }, Item { name: ref b, .. }| (a).partial_cmp(b).unwrap()
+            }
+            Some(SortItems::Count) => {
+                |Item { count: a, .. }, Item { count: b, .. }| a.partial_cmp(&b).unwrap()
+            }
+            Some(SortItems::Wear) => |Item { last_wear: a, .. }, Item { last_wear: b, .. }| {
+                utils::compare_optional_datetimes(a, b)
+            },
+            Some(SortItems::Wash) => {
+                |Item { last_wash: a, .. }, Item { last_wash: b, .. }| a.partial_cmp(b).unwrap()
+            }
+            None => |Item { id: a, .. }, Item { id: b, .. }| a.partial_cmp(b).unwrap(),
+        }
+    }
+}
+
+async fn home_page(
+    params: IndexOpts,
+    pool: SqlitePool,
+) -> Result<WithTemplate<serde_json::Value>, warp::Rejection> {
     let items = match sqlx::query_as("SELECT * FROM garments")
         .fetch_all(&pool)
         .await
     {
-        Ok(i) => {
-            eprintln!("request for index: {} items found", i.len());
-            i
+        Ok(mut i) => {
+            if params.sort.is_some() {
+                i.sort_unstable_by(params.get_sort_fn());
+            }
+
+            if let Some(true) = params.descending {
+                i.reverse();
+            }
+
+            i.iter()
+                .map(
+                    |Item {
+                         id,
+                         name,
+                         description,
+                         count,
+                         total_count,
+                         last_wear,
+                         last_wash,
+                         color,
+                         tags,
+                     }| {
+                        json!({
+                            "key": id,
+                            "name": name,
+                            "description": description,
+                            "count": count,
+                            "totalCount": total_count,
+                            "hasWear": last_wear.is_some(),
+                            "wear": last_wear,
+                            "wearFmt": last_wear.map(|t| (t - Utc::now()).humanize()),
+                            "hasWash": last_wash.is_some(),
+                            "wash": last_wash,
+                            "washFmt": last_wash.map(|t| (t - Utc::now()).humanize()),
+                            "color": color,
+                            "tags": tags.join(", "),
+                        })
+                    },
+                )
+                .collect::<Vec<_>>()
         }
         Err(e) => {
             eprintln!("request for index: could not retrieve collection: {}", e);
@@ -88,43 +177,17 @@ async fn home_page(pool: SqlitePool) -> Result<WithTemplate<serde_json::Value>, 
     Ok(WithTemplate {
         name: "index",
         value: json!({
-            "items": items.iter()
-                        .map(
-                            |Item {
-                                id,
-                                name,
-                                description,
-                                count,
-                                last,
-                                color,
-                                tags,
-                            }| {
-                                json!({
-                                    "key": id,
-                                    "name": name,
-                                    "description": description,
-                                    "count": count,
-                                    "hasLast": last.is_some(),
-                                    "last": last,
-                                    "lastFmt": last.map(utils::format_since),
-                                    "color": color,
-                                    "tags": tags.join(", "),
-                                })
-                            },
-                        )
-                        .collect::<Vec<_>>(),
+            "items": items,
             "numItems": items.len(),
-            "user" : "warp"
+            "sort": params.sort,
+            "descending": params.descending,
         }),
     })
 }
 
 async fn handle_post_item(s: SqlitePool, item: Item) -> Result<impl warp::Reply, warp::Rejection> {
     match sqlx::query(
-        r#"
-        INSERT INTO garments ( name, description, color, tags )
-        VALUES ( ?, ?, ?, ? )
-    "#,
+        "INSERT INTO garments ( name, description, color, tags ) VALUES ( ?, ?, ?, ? )",
     )
     .bind(&item.name)
     .bind(item.description)
@@ -176,8 +239,25 @@ async fn handle_update_item(
 }
 
 async fn handle_increment(i: usize, s: SqlitePool) -> Result<impl warp::Reply, warp::Rejection> {
-    match sqlx::query("UPDATE garments SET count = count + 1, last = ? WHERE id = ?")
-        .bind(Utc::now().to_string())
+    match sqlx::query(
+        "UPDATE garments SET count = count + 1, total = total + 1, wear = ? WHERE id = ?",
+    )
+    .bind(Utc::now().to_rfc3339())
+    .bind(i as i32)
+    .execute(&s)
+    .await
+    {
+        Ok(_) => Ok(utils::go_home()),
+        Err(e) => {
+            eprintln!("{}", e);
+            Err(warp::reject::not_found())
+        }
+    }
+}
+
+async fn handle_reset(i: usize, s: SqlitePool) -> Result<impl warp::Reply, warp::Rejection> {
+    match sqlx::query("UPDATE garments SET count = 0, wash = ? WHERE id = ?")
+        .bind(Utc::now().to_rfc3339())
         .bind(i as i32)
         .execute(&s)
         .await
@@ -238,9 +318,11 @@ async fn main() {
     let mut hb = Handlebars::new();
     hb.register_template_string("index", include_str!("./static/index.hbs"))
         .unwrap();
-    hb.register_partial("entry", include_str!("./static/entry.hbs"))
+    hb.register_partial("nav", include_str!("./static/nav.hbs"))
         .unwrap();
     hb.register_partial("form", include_str!("./static/form.hbs"))
+        .unwrap();
+    hb.register_template_string("new", include_str!("./static/new.hbs"))
         .unwrap();
     hb.register_template_string("edit", include_str!("./static/edit.hbs"))
         .unwrap();
@@ -261,15 +343,27 @@ async fn main() {
 
     let index = warp::get()
         .and(path::end())
+        .and(warp::query::query())
         .and(with_state.clone())
         .and_then(home_page)
-        .map(hbars.clone())
-        .with(utils::html_header());
+        .map(hbars.clone());
 
-    let css = path("styles.css")
+    let css = path("styles.css").and(path::end()).map(|| {
+        warp::reply::with_header(
+            include_str!("./static/styles.css"),
+            "Content-Type",
+            "text/css",
+        )
+    });
+
+    let new = warp::get()
+        .and(warp::path("new"))
         .and(path::end())
-        .map(|| include_str!("./static/styles.css"))
-        .with(utils::css_header());
+        .map(|| WithTemplate {
+            name: "new",
+            value: json!({}),
+        })
+        .map(hbars.clone());
 
     let post_item = warp::post()
         .and(path::end())
@@ -283,8 +377,7 @@ async fn main() {
         .and(path::end())
         .and(with_state.clone())
         .and_then(handle_edit_form)
-        .map(hbars)
-        .with(utils::html_header());
+        .map(hbars);
 
     let update_item = warp::post()
         .and(path::param())
@@ -301,6 +394,13 @@ async fn main() {
         .and(with_state.clone())
         .and_then(handle_increment);
 
+    let reset_item = warp::post()
+        .and(path::param())
+        .and(warp::path("reset"))
+        .and(path::end())
+        .and(with_state.clone())
+        .and_then(handle_reset);
+
     let delete_item = warp::post()
         .and(path::param())
         .and(path("remove"))
@@ -312,9 +412,11 @@ async fn main() {
         .or(css)
         .or(warp::path("item").and(
             post_item
+                .or(new)
                 .or(edit_item)
                 .or(update_item)
                 .or(increment_item)
+                .or(reset_item)
                 .or(delete_item),
         ))
         .with(warp::log("wear"));

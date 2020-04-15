@@ -1,0 +1,15 @@
+{{#if (eq sort category)}}
+  {{#if descending}}
+    <a class="icon" href="?sort={{category}}" title="Sort ascending">
+      ⬇️
+    </a>
+  {{else}}
+    <a class="icon" href="?sort={{category}}&descending=true" title="Sort descending">
+      ⬆️
+    </a>
+  {{/if}}
+{{else}}
+  <a class="icon" href="?sort={{category}}&descending=true" title="Sort descending">
+    ↕️
+  </a>
+{{/if}}

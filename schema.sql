@@ -5,5 +5,7 @@ CREATE TABLE IF NOT EXISTS garments (
   color       TEXT NOT NULL,
   tags        TEXT NOT NULL DEFAULT '',
   count       INTEGER NOT NULL DEFAULT 0,
-  last        TEXT
+  total       INTEGER NOT NULL DEFAULT 0,
+  wash        TEXT,
+  wear        TEXT
 );

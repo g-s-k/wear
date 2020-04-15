@@ -1,22 +1,21 @@
 <dt>
-  {{name}}
+  {{name}} <i class="swatch" style="background-color:{{color}};"></i>
+
+  <a class="edit" href="/item/{{key}}">Edit</a>
+  <form method="post">
+    <button formaction="/item/{{key}}/remove" type="submit">Delete</button>
+  </form>
 </dt>
 <dd>
-  <input type="color" disabled="" value="{{color}}">
+  <p class="description">{{description}}</p>
 
-  <p>{{description}}</p>
+  <p>Used {{totalCount}} times ({{count}} since last wash).</p>
 
-  <p>
-    Used {{count}} times.
+  {{#if hasWear}}
+    <p>Last used <time datetime="{{wear}}">{{wearFmt}}</time></p>
+  {{/if}}
 
-    {{#if hasLast}}
-    Last used <time datetime="{{last}}">{{lastFmt}}</time>
-    {{/if}}
-  </p>
-
-  <form method="post">
-    <button formaction="/item/{{key}}/increment" type="submit">Log usage</button>
-    <button formaction="/item/{{key}}" formmethod="get" type="submit">Edit</button>
-    <button formaction="/item/{{key}}/remove" type="submit">Remove</button>
-  </form>
+  {{#if hasWash}}
+    <p>Last washed <time datetime="{{wash}}">{{washFmt}}</time></p>
+  {{/if}}
 </dd>

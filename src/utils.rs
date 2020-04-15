@@ -1,40 +1,28 @@
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
 use {
     chrono::{DateTime, Utc},
     serde::{de::Visitor, Deserializer, Serializer},
-    warp::{filters::reply::WithHeader, http::Uri, Reply},
+    warp::{http::StatusCode, Reply},
 };
 
-pub fn css_header() -> WithHeader {
-    warp::reply::with::header("Content-Type", "text/css")
-}
-
-pub fn html_header() -> WithHeader {
-    warp::reply::with::header("Content-Type", "text/html")
-}
-
 pub fn go_home() -> impl Reply {
-    warp::redirect(Uri::from_static("/"))
+    warp::reply::with_header(StatusCode::SEE_OTHER, "Location", "/")
 }
 
 pub fn default_color() -> String {
     "#000000".into()
 }
 
-pub fn format_since(dt: DateTime<Utc>) -> String {
-    let dur = Utc::now() - dt;
-
-    if dur.num_minutes() < 60 {
-        "right now!".into()
-    } else if dur.num_hours() < 24 {
-        format!("{} hours ago.", dur.num_hours())
-    } else if dur.num_days() < 7 {
-        format!("{} days ago.", dur.num_days())
-    } else if dur.num_weeks() < 7 {
-        format!("{} weeks ago.", dur.num_weeks())
-    } else {
-        "a while ago.".into()
+pub fn compare_optional_datetimes(
+    a: &Option<DateTime<Utc>>,
+    b: &Option<DateTime<Utc>>,
+) -> Ordering {
+    match (a, b) {
+        (Some(time_a), Some(time_b)) => time_a.partial_cmp(&time_b).unwrap(),
+        (Some(_), None) => Ordering::Greater,
+        (None, Some(_)) => Ordering::Less,
+        (None, None) => Ordering::Equal,
     }
 }
 
