@@ -14,6 +14,7 @@ use {
 };
 
 mod db;
+mod location;
 mod template;
 mod utils;
 

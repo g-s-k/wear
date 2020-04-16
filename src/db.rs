@@ -1,7 +1,6 @@
 use {
     super::{Item, SortItems},
     chrono::{DateTime, Utc},
-    directories::ProjectDirs,
     sqlx::{
         prelude::*,
         sqlite::{SqlitePool, SqliteRow},
@@ -10,7 +9,6 @@ use {
         ffi::OsString,
         fmt::{self, Display},
         fs,
-        io::ErrorKind,
         path::PathBuf,
         time::Instant,
     },
@@ -73,54 +71,8 @@ pub(crate) struct Connection(SqlitePool);
 impl Connection {
     pub(crate) async fn new(data_path: Option<PathBuf>) -> anyhow::Result<Self> {
         const PROTOCOL: &str = "sqlite://";
-        const QUALIFIER: &str = "xyz.georgekaplan";
-        const ORG: &str = "g-s-k";
-        const APP_NAME: &str = "wear";
-        const DEFAULT_FILE_NAME: &str = "data.db";
 
-        let mut directory;
-        let mut file_name = OsString::from(DEFAULT_FILE_NAME);
-
-        if let Some(p) = data_path {
-            directory = p.clone();
-
-            match fs::metadata(&p) {
-                // if the specified path exists and is a directory, use it with the default filename
-                Ok(m) if m.is_dir() => (),
-
-                // if it's a file, try splitting off the filename
-                Ok(m) if m.is_file() => {
-                    eprintln!("{:?}", m);
-                    if let (Some(d), Some(f)) = (p.parent(), p.file_name()) {
-                        file_name = f.to_os_string();
-                        directory = d.to_path_buf();
-                    }
-                }
-
-                // if it's something else, hmm...
-                Ok(_) => (),
-
-                // if it doesn't exist yet...
-                Err(e) if e.kind() == ErrorKind::NotFound => {
-                    eprintln!("{:?}", e);
-                    // and it has a file extension, use it in its entirety
-                    if let (Some(d), Some(f), Some(_)) = (p.parent(), p.file_name(), p.extension())
-                    {
-                        file_name = f.to_os_string();
-                        directory = d.to_path_buf();
-                    }
-                }
-
-                // otherwise, get the heck out of here
-                Err(other) => return Err(other.into()),
-            }
-        } else if let Some(p_dirs) = ProjectDirs::from(QUALIFIER, ORG, APP_NAME) {
-            directory = p_dirs.data_dir().to_path_buf();
-        } else {
-            eprintln!("Could not determine a platform-appropriate location for data storage. Using the current directory.");
-            directory = std::env::current_dir()?;
-        };
-
+        let (mut directory, file_name) = super::location::database_file(data_path)?;
         fs::create_dir_all(&directory)?;
 
         directory.push(file_name);
