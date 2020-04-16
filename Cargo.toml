@@ -16,3 +16,5 @@ tokio = { version = "0.2.17", features = ["full"] }
 sqlx = { version = "0.3", default-features = false, features = [ "runtime-tokio", "sqlite" ] }
 chrono-humanize = "0.0.11"
 anyhow = "1.0.28"
+clap = { git = "https://github.com/clap-rs/clap" } 
+directories = "2.0.2"

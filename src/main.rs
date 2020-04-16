@@ -4,10 +4,11 @@ use {
     anyhow::Context,
     chrono::{DateTime, Utc},
     chrono_humanize::Humanize,
+    clap::Clap,
     handlebars::Handlebars,
     serde::{Deserialize, Serialize},
     serde_json::json,
-    std::sync::Arc,
+    std::{net::IpAddr, path::PathBuf, sync::Arc},
     tokio::{signal, sync::oneshot},
     warp::{path, Filter},
 };
@@ -18,17 +19,36 @@ mod utils;
 
 use {db::Connection, template::WithTemplate};
 
+#[derive(Clap)]
+#[clap(rename_all = "kebab-case", setting(clap::AppSettings::ColoredHelp))]
+struct Opts {
+    #[clap(long, default_value = "127.0.0.1", help = "Host to bind server to")]
+    host: IpAddr,
+
+    #[clap(long, short, default_value = "3000", help = "Port to listen on")]
+    port: u16,
+
+    #[clap(
+        long,
+        help = "Path to store database file",
+        long_help = "Path to store database file\nIf not specified, will pick a location appropriate for your platform"
+    )]
+    data_path: Option<PathBuf>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let options = Opts::try_parse()?;
+
     let hb = template::init().context("Failed to initialize templating engine")?;
-    let conn = Connection::new()
+    let conn = Connection::new(options.data_path)
         .await
         .context("Failed to connect to database")?;
 
     // set up the server in a way that lets us shut it down from the outside
     let (tx, rx) = oneshot::channel();
     let (_address, server) = warp::serve(new_router(hb, conn.clone())).bind_with_graceful_shutdown(
-        ([0, 0, 0, 0], 3000),
+        (options.host, options.port),
         async {
             rx.await.ok();
         },

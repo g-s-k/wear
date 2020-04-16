@@ -1,11 +1,19 @@
 use {
     super::{Item, SortItems},
     chrono::{DateTime, Utc},
+    directories::ProjectDirs,
     sqlx::{
         prelude::*,
         sqlite::{SqlitePool, SqliteRow},
     },
-    std::time::Instant,
+    std::{
+        ffi::OsString,
+        fmt::{self, Display},
+        fs,
+        io::ErrorKind,
+        path::PathBuf,
+        time::Instant,
+    },
 };
 
 type ExecResult = sqlx::Result<u64>;
@@ -40,20 +48,91 @@ impl<'c> FromRow<'c, SqliteRow<'c>> for Item {
     }
 }
 
+#[derive(Debug)]
+pub enum ConnectionError {
+    Utf8(OsString),
+}
+
+impl std::error::Error for ConnectionError {}
+
+impl Display for ConnectionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Utf8(s) => write!(
+                f,
+                "Cannot convert the following raw path to UTF-8: {}",
+                s.to_string_lossy()
+            ),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub(crate) struct Connection(SqlitePool);
 
 impl Connection {
-    pub(crate) async fn new() -> anyhow::Result<Self> {
-        let db_path = format!(
-            "sqlite://{}/data.db",
-            std::env::current_dir()?.to_string_lossy()
-        );
+    pub(crate) async fn new(data_path: Option<PathBuf>) -> anyhow::Result<Self> {
+        const PROTOCOL: &str = "sqlite://";
+        const QUALIFIER: &str = "xyz.georgekaplan";
+        const ORG: &str = "g-s-k";
+        const APP_NAME: &str = "wear";
+        const DEFAULT_FILE_NAME: &str = "data.db";
 
-        eprintln!("Connecting to database at {}", db_path);
+        let mut directory;
+        let mut file_name = OsString::from(DEFAULT_FILE_NAME);
+
+        if let Some(p) = data_path {
+            directory = p.clone();
+
+            match fs::metadata(&p) {
+                // if the specified path exists and is a directory, use it with the default filename
+                Ok(m) if m.is_dir() => (),
+
+                // if it's a file, try splitting off the filename
+                Ok(m) if m.is_file() => {
+                    eprintln!("{:?}", m);
+                    if let (Some(d), Some(f)) = (p.parent(), p.file_name()) {
+                        file_name = f.to_os_string();
+                        directory = d.to_path_buf();
+                    }
+                }
+
+                // if it's something else, hmm...
+                Ok(_) => (),
+
+                // if it doesn't exist yet...
+                Err(e) if e.kind() == ErrorKind::NotFound => {
+                    eprintln!("{:?}", e);
+                    // and it has a file extension, use it in its entirety
+                    if let (Some(d), Some(f), Some(_)) = (p.parent(), p.file_name(), p.extension())
+                    {
+                        file_name = f.to_os_string();
+                        directory = d.to_path_buf();
+                    }
+                }
+
+                // otherwise, get the heck out of here
+                Err(other) => return Err(other.into()),
+            }
+        } else if let Some(p_dirs) = ProjectDirs::from(QUALIFIER, ORG, APP_NAME) {
+            directory = p_dirs.data_dir().to_path_buf();
+        } else {
+            eprintln!("Could not determine a platform-appropriate location for data storage. Using the current directory.");
+            directory = std::env::current_dir()?;
+        };
+
+        fs::create_dir_all(&directory)?;
+
+        directory.push(file_name);
+        let mut db_path = OsString::from(PROTOCOL);
+        db_path.push(directory);
+
+        let string_path = db_path.into_string().map_err(ConnectionError::Utf8)?;
+
+        eprintln!("Connecting to database at {}", string_path);
         let before = Instant::now();
 
-        let pool = SqlitePool::new(&db_path).await?;
+        let pool = SqlitePool::new(&string_path).await?;
 
         eprintln!(
             "Connected to database after {}µs. Connection pool details: {:#?}",
