@@ -1,12 +1,14 @@
 #![deny(clippy::all)]
 
 use {
+    anyhow::Context,
     chrono::{DateTime, Utc},
     chrono_humanize::Humanize,
     handlebars::Handlebars,
     serde::{Deserialize, Serialize},
     serde_json::json,
     std::sync::Arc,
+    tokio::{signal, sync::oneshot},
     warp::{path, Filter},
 };
 
@@ -17,10 +19,34 @@ mod utils;
 use {db::Connection, template::WithTemplate};
 
 #[tokio::main]
-async fn main() {
-    warp::serve(new_router(template::init(), Connection::new().await))
-        .run(([0, 0, 0, 0], 3000))
-        .await;
+async fn main() -> anyhow::Result<()> {
+    let hb = template::init().context("Failed to initialize templating engine")?;
+    let conn = Connection::new()
+        .await
+        .context("Failed to connect to database")?;
+
+    // set up the server in a way that lets us shut it down from the outside
+    let (tx, rx) = oneshot::channel();
+    let (_address, server) = warp::serve(new_router(hb, conn.clone())).bind_with_graceful_shutdown(
+        ([0, 0, 0, 0], 3000),
+        async {
+            rx.await.ok();
+        },
+    );
+    let server_task = tokio::spawn(server);
+
+    // on ctrl+c, tell the server to shut down
+    let err_ctrl_c = signal::ctrl_c().await;
+    let _ = tx.send(());
+
+    // wait for it to actually stop, then close the database connection
+    let err_server_close = server_task.await;
+    conn.close().await;
+
+    // allow failures to be reported, in order, after graceful shutdown
+    err_ctrl_c?;
+    err_server_close?;
+    Ok(())
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

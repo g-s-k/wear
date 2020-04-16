@@ -5,6 +5,7 @@ use {
         prelude::*,
         sqlite::{SqlitePool, SqliteRow},
     },
+    std::time::Instant,
 };
 
 type ExecResult = sqlx::Result<u64>;
@@ -43,22 +44,40 @@ impl<'c> FromRow<'c, SqliteRow<'c>> for Item {
 pub(crate) struct Connection(SqlitePool);
 
 impl Connection {
-    pub(crate) async fn new() -> Self {
+    pub(crate) async fn new() -> anyhow::Result<Self> {
         let db_path = format!(
             "sqlite://{}/data.db",
-            std::env::current_dir().unwrap().to_string_lossy()
+            std::env::current_dir()?.to_string_lossy()
         );
 
         eprintln!("Connecting to database at {}", db_path);
+        let before = Instant::now();
 
-        let pool = SqlitePool::new(&db_path).await.unwrap();
+        let pool = SqlitePool::new(&db_path).await?;
 
         eprintln!(
-            "Connected to database. Connection pool details: {:#?}",
+            "Connected to database after {}µs. Connection pool details: {:#?}",
+            before.elapsed().as_micros(),
             pool
         );
 
-        Self(pool)
+        Ok(Self(pool))
+    }
+
+    pub(crate) async fn close(&self) {
+        eprintln!(
+            "\r\nClosing database connection [{} connection(s), {} idle]",
+            self.0.size(),
+            self.0.idle()
+        );
+        let before = Instant::now();
+
+        self.0.close().await;
+
+        eprintln!(
+            "Database connection closed after {}µs",
+            before.elapsed().as_micros()
+        );
     }
 
     pub(crate) async fn get_all(

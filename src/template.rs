@@ -14,17 +14,14 @@ impl<T: Serialize> WithTemplate<T> {
     }
 }
 
-pub fn init() -> Handlebars {
+pub fn init() -> anyhow::Result<Handlebars> {
     let mut hb = Handlebars::new();
-    hb.register_template_string("index", include_str!("./static/index.hbs"))
-        .unwrap();
-    hb.register_partial("nav", include_str!("./static/nav.hbs"))
-        .unwrap();
-    hb.register_partial("form", include_str!("./static/form.hbs"))
-        .unwrap();
-    hb.register_template_string("new", include_str!("./static/new.hbs"))
-        .unwrap();
-    hb.register_template_string("edit", include_str!("./static/edit.hbs"))
-        .unwrap();
-    hb
+
+    hb.register_template_string("index", include_str!("./static/index.hbs"))?;
+    hb.register_partial("nav", include_str!("./static/nav.hbs"))?;
+    hb.register_partial("form", include_str!("./static/form.hbs"))?;
+    hb.register_template_string("new", include_str!("./static/new.hbs"))?;
+    hb.register_template_string("edit", include_str!("./static/edit.hbs"))?;
+
+    Ok(hb)
 }
