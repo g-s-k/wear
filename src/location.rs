@@ -2,18 +2,18 @@ use {
     directories::ProjectDirs,
     std::{
         ffi::OsString,
-        fs,
         io::ErrorKind,
         path::{Path, PathBuf},
     },
+    tokio::fs,
 };
 
-const QUALIFIER: &str = "xyz.georgekaplan";
-const ORG: &str = "g-s-k";
+const QUALIFIER: &str = "xyz";
+const ORG: &str = "georgekaplan";
 const APP_NAME: &str = "wear";
 const DEFAULT_FILE_NAME: &str = "data.db";
 
-pub(crate) fn database_file<P: AsRef<Path>>(
+pub(crate) async fn database_file<P: AsRef<Path>>(
     user_path: Option<P>,
 ) -> anyhow::Result<(PathBuf, OsString)> {
     let mut directory;
@@ -22,7 +22,7 @@ pub(crate) fn database_file<P: AsRef<Path>>(
     if let Some(p) = user_path {
         directory = p.as_ref().to_path_buf();
 
-        match fs::metadata(&p) {
+        match fs::metadata(&p).await {
             // if the specified path exists and is a directory, use it with the default filename
             Ok(m) if m.is_dir() => (),
 
@@ -67,61 +67,61 @@ pub(crate) fn database_file<P: AsRef<Path>>(
 mod test {
     use super::*;
 
-    #[test]
-    fn none() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn none() -> anyhow::Result<()> {
         let p_dirs = ProjectDirs::from(QUALIFIER, ORG, APP_NAME).unwrap();
 
         assert_eq!(
-            database_file(None as Option<&str>)?,
+            database_file(None as Option<&str>).await?,
             (p_dirs.data_dir().into(), DEFAULT_FILE_NAME.into())
         );
         Ok(())
     }
 
-    #[test]
-    fn current_dir() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn current_dir() -> anyhow::Result<()> {
         assert_eq!(
-            database_file(Some("."))?,
+            database_file(Some(".")).await?,
             (".".into(), DEFAULT_FILE_NAME.into())
         );
         Ok(())
     }
 
-    #[test]
-    fn parent_dir() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn parent_dir() -> anyhow::Result<()> {
         assert_eq!(
-            database_file(Some(".."))?,
+            database_file(Some("..")).await?,
             ("..".into(), DEFAULT_FILE_NAME.into())
         );
         Ok(())
     }
 
-    #[test]
-    fn existing_dir() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn existing_dir() -> anyhow::Result<()> {
         let tmp = std::env::temp_dir();
 
         assert_eq!(
-            database_file(Some(&tmp))?,
+            database_file(Some(&tmp)).await?,
             (tmp.into(), DEFAULT_FILE_NAME.into())
         );
         Ok(())
     }
 
-    #[test]
-    fn existing_file() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn existing_file() -> anyhow::Result<()> {
         let mut tmp = std::env::temp_dir();
         tmp.push(DEFAULT_FILE_NAME);
-        fs::write(&tmp, b"")?;
+        fs::write(&tmp, b"").await?;
 
         assert_eq!(
-            database_file(Some(&tmp))?,
+            database_file(Some(&tmp)).await?,
             (std::env::temp_dir(), DEFAULT_FILE_NAME.into())
         );
         Ok(())
     }
 
-    #[test]
-    fn non_existing_dir() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn non_existing_dir() -> anyhow::Result<()> {
         // make a path representing a deeply nested location under /tmp that (almost)
         // definitely does not exist
         let mut tmp = std::env::temp_dir();
@@ -133,14 +133,14 @@ mod test {
         );
 
         assert_eq!(
-            database_file(Some(&tmp))?,
+            database_file(Some(&tmp)).await?,
             (tmp.into(), DEFAULT_FILE_NAME.into())
         );
         Ok(())
     }
 
-    #[test]
-    fn non_existing_file() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn non_existing_file() -> anyhow::Result<()> {
         const F_NAME: &str = "zyxwvut.db";
 
         // make a path representing a deeply nested location under /tmp that (almost)
@@ -155,7 +155,7 @@ mod test {
         tmp.push(F_NAME);
 
         assert_eq!(
-            database_file(Some(&tmp))?,
+            database_file(Some(&tmp)).await?,
             (tmp.parent().unwrap().into(), F_NAME.into())
         );
         Ok(())
